@@ -38,7 +38,7 @@ jobs:
         if: runner.os == 'Linux' 
         run: sudo swapoff -a
         
-      - name: Run DynamoRIO
+      - name: Run DynamoRIO (Code Coverage)
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
           export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
@@ -74,6 +74,36 @@ jobs:
               $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter "$log_dir"
             done
           }
+          
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_coverage "$file"
+              echo ""
+              echo ""
+            fi
+          done
+
+          echo "=========[DynamoRIO service finished]========="
+
+      - name: Run DynamoRIO (CacheSim)
+        run: |
+          export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
+          export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
+          #!/bin/bash
+          set +e 
+
+          echo "=========[DynamoRIO CacheSim Service Started!]========="
+          DIRECTORY=.
+
+          is_executable() {
+            local file="$1"
+            if file "$file" | grep -q 'ELF 64-bit'; then
+              return 0
+            else
+              return 1
+            fi
+          }
 
           run_with_dynrio_cachesim() {
             local executable="$1"
@@ -87,6 +117,36 @@ jobs:
             $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool view -- "$executable"
             $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool histogram -- "$executable"
           }
+          
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_cachesim "$file"
+              echo ""
+              echo ""
+            fi
+          done
+
+          echo "=========[DynamoRIO CacheSim service finished]========="
+
+      - name: Run DynamoRIO (CPU Simulator)
+        run: |
+          export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
+          export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
+          #!/bin/bash
+          set +e 
+
+          echo "=========[DynamoRIO CPU Sim Service Started!]========="
+          DIRECTORY=.
+
+          is_executable() {
+            local file="$1"
+            if file "$file" | grep -q 'ELF 64-bit'; then
+              return 0
+            else
+              return 1
+            fi
+          }
 
           run_with_dynrio_cpusim() {
             local executable="$1"
@@ -98,26 +158,31 @@ jobs:
                 timeout 45s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable"
             done
           }
-          
+
           find "$DIRECTORY" -type f -executable | while read -r file; do
             if is_executable "$file"; then
-              run_with_dynrio_coverage "$file"
+              run_with_dynrio_cpusim "$file"
               echo ""
               echo ""
-              run_with_dynrio_cachesim "$file"
-              echo ""
-              echo "" 
-              
             fi
           done
 
-          echo "=========[DynamoRIO service finished]========="
-  
-      - name: Upload DynamoRIO reports
+          echo "=========[DynamoRIO CPU Sim service finished]========="
+          
+      - name: Upload DynamoRIO reports (for Code Coverage)
         uses: actions/upload-artifact@v4
         with:
-          name: dynamoRIO-report-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
-          path: | 
-            './logs_coverage/*'
-            './logs_cachesim/*'
-            './logs_cpusim/*'
+          name: dynamoRIO_codecoverage-report-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
+          path: './logs_coverage/*'
+
+      - name: Upload DynamoRIO reports (for Cache Simulator)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamoRIO_cachesim-report-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
+          path: './logs_cachesim/*'
+            
+      - name: Upload DynamoRIO reports (for CPU Simulator)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamoRIO_cpusim-report-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
+          path: './logs_cpusim/*'
