@@ -83,8 +83,9 @@ jobs:
             fi
           done
 
+          find ./logs_coverage/* -type f -size 0 -delete
           echo "=========[DynamoRIO Code Coverage service finished]========="
-
+          
       - name: Run DynamoRIO (Cachesim)
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
@@ -127,6 +128,7 @@ jobs:
             fi
           done
 
+          find ./logs_cachesim/* -type f -size 0 -delete
           echo "=========[DynamoRIO Cachesim service finished]========="
           
       - name: Run DynamoRIO (Memtrace)
@@ -171,8 +173,9 @@ jobs:
             fi
           done
 
+          find ./logs_memtrace/* -type f -size 0 -delete
           echo "=========[DynamoRIO Memtrace service finished]========="
-
+          
       - name: Run DynamoRIO (CPU Simulator)
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
@@ -213,6 +216,7 @@ jobs:
             fi
           done
 
+          find ./logs_cpusim/* -type f -size 0 -delete
           echo "=========[DynamoRIO CPU Sim service finished]========="
           
       - name: Upload DynamoRIO reports (for Code Coverage)
