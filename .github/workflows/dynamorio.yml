@@ -10,7 +10,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04]
-
+        arch: [armv7, aarch64, x64, x86]
+        
     steps:
       - name: Check out repository
         uses: actions/checkout@v4 
@@ -29,6 +30,14 @@ jobs:
           sudo apt-get install -y libunwind8
           wget -P /tmp/ https://github.com/DynamoRIO/dynamorio/releases/download/release_10.0.0/DynamoRIO-Linux-10.0.0.tar.gz && tar -xzf /tmp/DynamoRIO-Linux-10.0.0.tar.gz -C /tmp/
            
+      - name: Disable Address Space Randomization
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.randomize_va_space=0
+      
+      - name: Disable swapping 
+        if: runner.os == 'Linux' 
+        run: sudo swapoff -a
+        
       - name: Run DynamoRIO
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
@@ -66,18 +75,50 @@ jobs:
             done
           }
 
+          run_with_dynrio_cachesim() {
+            local executable="$1"
+            local log_dir="./logs_cachesim"
+            mkdir -p "$log_dir"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool TLB -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool reuse_distance -reuse_distance_histogram -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool reuse_time -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool basic_counts -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool opcode_mix -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool view -- "$executable"
+            $DYNAMORIO_HOME/bin64/drrun -t drmemtrace -offline -logdir "$log_dir" -tool histogram -- "$executable"
+          }
+
+          run_with_dynrio_cpusim() {
+            local executable="$1"
+            local log_dir="./logs_cpusim"
+            mkdir -p "$log_dir"
+            cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
+            for cpu in "${cpus[@]}"; do
+            for cpu in "${cpus[@]}"; do
+                echo "Running command for CPU: $cpu"
+                timeout 45s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable"
+            done
+          }
+          
           find "$DIRECTORY" -type f -executable | while read -r file; do
             if is_executable "$file"; then
               run_with_dynrio_coverage "$file"
               echo ""
               echo ""
+              run_with_dynrio_cachesim "$file"
+              echo ""
+              echo "" 
+              
             fi
           done
 
           echo "=========[DynamoRIO service finished]========="
   
-      - name: Upload Dr. Memory reports
+      - name: Upload DynamoRIO reports
         uses: actions/upload-artifact@v4
         with:
-          name: drmemory-report-${{ github.event.repository.name }}-on-${{ matrix.os }}
-          path: './logs_coverage/*'
+          name: dynamoRIO-report-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
+          path: | 
+            './logs_coverage/*'
+            './logs_cachesim/*'
+            './logs_cpusim/*'
