@@ -5,13 +5,13 @@ on:
 
 jobs:
   run-dynamorio:
-    name: '${{ matrix.os }} + ${{ matrix.arch }} --> ${{ matrix.analysis_tool }}'
+    name: '${{ matrix.os }} + ${{ matrix.arch }}'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-22.04]
         arch: [armv7, aarch64, x64, x86, mips, mips64]
-        analysis_tool: ['coverage', 'cachesim', 'memtrace', 'cpusim']
+        
     steps:
       - name: Check out repository
         uses: actions/checkout@v4 
@@ -37,18 +37,18 @@ jobs:
       - name: Disable swapping 
         if: runner.os == 'Linux' 
         run: sudo swapoff -a
+
+      - name: Make parent folder
+        run: mkdir -p dynamoriologs
         
-      - name: Set up DynamoRIO
+      - name: Run DynamoRIO (Code Coverage)
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
           export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
           export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
-        
-      - name: Run DynamoRIO (${{ matrix.analysis_tool }})
-        run: |
           #!/bin/bash
-          set +e
-          
+          set +e 
+          echo "=========[DynamoRIO Code Coverage Service Started!]========="
           DIRECTORY=.
           is_executable() {
             local file="$1"
@@ -58,71 +58,152 @@ jobs:
               return 1
             fi
           }
-          
-          case "${{ matrix.analysis_tool }}" in
-            coverage)
-              echo "=========[DynamoRIO Code Coverage Service Started!]========="
-              mkdir -p logs_coverage
-              find "$DIRECTORY" -type f -executable | while read -r file; do
-                if is_executable "$file"; then
-                  $DYNAMORIO_HOME/bin64/drrun -t drcov -logdir "logs_coverage" -dump_text -- "$file"
-                  for log_file in "logs_coverage"/drcov.*.log; do
-                    $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter "logs_coverage"
-                  done
-                fi
-              done
-              find ./logs_coverage/* -type f -size 0 -delete
-              echo "=========[DynamoRIO Code Coverage service finished]========="
-              ;;
-            cachesim)
-              echo "=========[DynamoRIO Cachesim Service Started!]========="
-              mkdir -p logs_cachesim
-              find "$DIRECTORY" -type f -executable | while read -r file; do
-                if is_executable "$file"; then
-                  local base_name=$(basename "$file")
-                  timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -t drcachesim -- "$file" > "logs_cachesim/${base_name}-drcachesim.log" 2>&1
-                fi
-              done
-              find ./logs_cachesim/* -type f -size 0 -delete
-              echo "=========[DynamoRIO Cachesim service finished]========="
-              ;;
-            memtrace)
-              echo "=========[DynamoRIO Memtrace Service Started!]========="
-              mkdir -p logs_memtrace
-              find "$DIRECTORY" -type f -executable | while read -r file; do
-                if is_executable "$file"; then
-                  local base_name=$(basename "$file")
-                  timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -c samples/bin64/libmemtrace_x86_text.so -offline -logdir "logs_memtrace" -tool TLB -- "$file" > "logs_memtrace/${base_name}-TLB.log" 2>&1
-                  timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "logs_memtrace" -tool reuse_distance -reuse_distance_histogram -- "$file" > "logs_memtrace/${base_name}-reuse_dist.log" 2>&1
-                  # Add additional memtrace tools here
-                fi
-              done
-              find ./logs_memtrace/* -type f -size 0 -delete
-              echo "=========[DynamoRIO Memtrace service finished]========="
-              ;;
-            cpusim)
-              echo "=========[DynamoRIO CPU Sim Service Started!]========="
-              mkdir -p logs_cpusim
-              find "$DIRECTORY" -type f -executable | while read -r file; do
-                if is_executable "$file"; then
-                  local base_name=$(basename "$file")
-                  cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
-                  for cpu in "${cpus[@]}"; do
-                    timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$file" > "logs_cpusim/${base_name}-ran-on-${cpu}.log" 2>&1
-                  done
-                fi
-              done
-              find ./logs_cpusim/* -type f -size 0 -delete
-              echo "=========[DynamoRIO CPU Sim service finished]========="
-              ;;
-            *)
-              echo "Invalid analysis tool: ${{ matrix.analysis_tool }}"
-              exit 1
-              ;;
-          esac
+          run_with_dynrio_coverage() {
+            local executable="$1"
+            local log_dir="./dynamoriologs/logs_coverage"
+            mkdir -p "$log_dir"
+            $DYNAMORIO_HOME/bin64/drrun -t drcov -logdir "$log_dir" -dump_text -- "$executable"
+            local exit_status=$?
             
-      - name: Upload DynamoRIO reports
+            if [ $exit_status -eq 124 ]; then
+              echo "Execution timed out after 45 seconds: $executable"
+            fi
+            for log_file in "$log_dir"/drcov.*.log; do
+              $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter "$log_dir"
+            done
+          }
+          
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_coverage "$file"
+              echo ""
+              echo ""
+            fi
+          done
+          find "$log_dir" -type f -size 0 -delete
+          echo "=========[DynamoRIO Code Coverage service finished]========="
+          
+      - name: Run DynamoRIO (Cachesim)
+        run: |
+          export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
+          export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
+          #!/bin/bash
+          set +e 
+          echo "=========[DynamoRIO Cachesim Service Started!]========="
+          DIRECTORY=.
+          is_executable() {
+            local file="$1"
+            if file "$file" | grep -q 'ELF 64-bit'; then
+              return 0
+            else
+              return 1
+            fi
+          }
+          run_with_dynrio_cachesim() {
+            local executable="$1"
+            local log_dir="./dynamoriologs/logs_cachesim"
+            mkdir -p "$log_dir"
+            local base_name=$(basename "$executable")
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t drcachesim -- "$executable" > "${log_dir}/${base_name}-drcachesim.log" 2>&1
+            local exit_status=$?
+            
+            if [ $exit_status -eq 124 ]; then
+              echo "Execution timed out after 45 seconds: $executable"
+            fi
+          }
+          
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_cachesim "$file"
+              echo ""
+              echo ""
+            fi
+          done
+          find "$log_dir" -type f -size 0 -delete
+          echo "=========[DynamoRIO Cachesim service finished]========="
+          
+      - name: Run DynamoRIO (Memtrace)
+        run: |
+          export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
+          export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$DYNAMORIO_HOME/tools/lib64/release:$LD_LIBRARY_PATH"
+          #!/bin/bash
+          set +e 
+          echo "=========[DynamoRIO Memtrace Service Started!]========="
+          DIRECTORY=.
+          is_executable() {
+            local file="$1"
+            if file "$file" | grep -q 'ELF 64-bit'; then
+              return 0
+            else
+              return 1
+            fi
+          }
+          run_with_dynrio_memtrace() {
+            local executable="$1"
+            local log_dir="./dynamoriologs/logs_memtrace"
+            mkdir -p "$log_dir"
+            local base_name=$(basename "$executable")
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -c samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool TLB -- "$executable" > "${log_dir}/${base_name}-TLB.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_distance -reuse_distance_histogram -- "$executable" > "${log_dir}/${base_name}-reuse_dist.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_time -- "$executable" > "${log_dir}/${base_name}-reuse_time.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool basic_counts -- "$executable" > "${log_dir}/${base_name}-basic_counts.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool opcode_mix -- "$executable" > "${log_dir}/${base_name}-opcodemix.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool view -- "$executable" > "${log_dir}/${base_name}-view.log" 2>&1
+            timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool histogram -- "$executable" > "${log_dir}/${base_name}-histogram.log" 2>&1
+          }
+          
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_memtrace "$file"
+              echo ""
+              echo ""
+            fi
+          done
+          find "$log_dir" -type f -size 0 -delete
+          echo "=========[DynamoRIO Memtrace service finished]========="
+          
+      - name: Run DynamoRIO (CPU Simulator)
+        run: |
+          export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
+          export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
+          #!/bin/bash
+          set +e 
+          echo "=========[DynamoRIO CPU Sim Service Started!]========="
+          DIRECTORY=.
+          is_executable() {
+            local file="$1"
+            if file "$file" | grep -q 'ELF 64-bit'; then
+              return 0
+            else
+              return 1
+            fi
+          }
+          run_with_dynrio_cpusim() {
+            local executable="$1"
+            local log_dir="./dynamoriologs/logs_cpusim"
+            mkdir -p "$log_dir"
+            cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
+            for cpu in "${cpus[@]}"; do
+                local base_name=$(basename "$executable")
+                local log_file="${log_dir}/${base_name}-ran-on-${cpu}.log"
+                timeout --signal=SIGQUIT 10s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable" > "$log_file" 2>&1
+            done
+          }
+          find "$DIRECTORY" -type f -executable | while read -r file; do
+            if is_executable "$file"; then
+              run_with_dynrio_cpusim "$file"
+              echo ""
+              echo ""
+            fi
+          done
+          find "$log_dir" -type f -size 0 -delete
+          echo "=========[DynamoRIO CPU Sim service finished]========="
+          
+      - name: Upload DynamoRIO aggregated reports
         uses: actions/upload-artifact@v4
         with:
-          name: dynamoRIO-${{ matrix.analysis_tool }}-report-${{ github.event.repository.name }}-on-${{ runner.os }}-under-${{ runner.arch }}
-          path: logs_${{ matrix.analysis_tool }}/*
+          name: dynamoRIO-aggregated-reports-${{ github.event.repository.name }}-on-${{ matrix.os }}-under-${{ matrix.arch }}
+          path: './dynamoriologs/*'
