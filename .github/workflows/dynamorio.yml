@@ -89,7 +89,7 @@ jobs:
         run: |
           export DYNAMORIO_HOME="/tmp/DynamoRIO-Linux-10.0.0"
           export GITHUB_PATH="$DYNAMORIO_HOME/bin64:$DYNAMORIO_HOME/tools/bin64:$GITHUB_PATH"
-          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$LD_LIBRARY_PATH"
+          export LD_LIBRARY_PATH="$DYNAMORIO_HOME/lib64:$DYNAMORIO_HOME/tools/lib64/release:$LD_LIBRARY_PATH"
           #!/bin/bash
           set +e 
 
@@ -154,8 +154,7 @@ jobs:
             mkdir -p "$log_dir"
             cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
             for cpu in "${cpus[@]}"; do
-                echo "Running command for CPU: $cpu"
-                timeout 45s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable"
+                timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -logdir "$log_dir" -- "$executable"
             done
           }
 
