@@ -137,6 +137,7 @@ jobs:
               run_with_dynrio_cachesim "$file"
               echo ""
               echo ""
+              clear
             fi
           done
           
@@ -209,6 +210,7 @@ jobs:
               run_with_dynrio_memtrace "$file"
               echo ""
               echo ""
+              clear
             fi
           done
           
