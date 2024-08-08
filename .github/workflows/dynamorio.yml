@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, redhat-8]
+        os: [ubuntu-22.04, redhat-latest]
         arch: [armv7, aarch64, x64, x86, mips, mips64, riscv64]
         
     steps:
