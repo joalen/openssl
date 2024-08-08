@@ -5,12 +5,12 @@ on:
 
 jobs:
   run-drmemory:
-    name: '${{ matrix.os }}'
+    name: '${{ matrix.os }} + ${{ matrix.arch }}'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-22.04]
-        arch: [armv7, aarch64, x64, x86]
+        arch: [armv7, aarch64, x64, x86, mips, mips64]
         
     steps:
       - name: Check out repository
@@ -93,7 +93,6 @@ jobs:
             local log_dir="./logs_cpusim"
             mkdir -p "$log_dir"
             cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
-            for cpu in "${cpus[@]}"; do
             for cpu in "${cpus[@]}"; do
                 echo "Running command for CPU: $cpu"
                 timeout 45s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable"
