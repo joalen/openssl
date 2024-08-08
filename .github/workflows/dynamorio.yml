@@ -116,10 +116,6 @@ jobs:
             if [ $exit_status -eq 124 ]; then
               echo "Execution timed out after 45 seconds: $executable"
             fi
-
-            for log_file in "$log_dir"/drcov.*.log; do
-              $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter "$log_dir"
-            done
           }
           
           find "$DIRECTORY" -type f -executable | while read -r file; do
