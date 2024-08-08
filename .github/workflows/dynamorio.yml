@@ -110,7 +110,7 @@ jobs:
             local executable="$1"
             local log_dir="./logs_cachesim"
             mkdir -p "$log_dir"
-            $DYNAMORIO_HOME/bin64/drrun -t drcachesim -- "$executable" > "${log_dir}/${basename "$executable"}-drcachesim.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t drcachesim -- "$executable" > "${log_dir}/${(basename "$executable")}-drcachesim.log" 2>&1
             local exit_status=$?
             
             if [ $exit_status -eq 124 ]; then
@@ -152,13 +152,13 @@ jobs:
             local executable="$1"
             local log_dir="./logs_memtrace"
             mkdir -p "$log_dir"
-            $DYNAMORIO_HOME/bin64/drrun -c samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool TLB -- "$executable" > "${log_dir}/${basename "$executable"}-TLB.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_distance -reuse_distance_histogram -- "$executable" > "${log_dir}/${basename "$executable"}-reuse_dist.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_time -- "$executable" > "${log_dir}/${basename "$executable"}-reuse_time.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool basic_counts -- "$executable" > "${log_dir}/${basename "$executable"}-basic_counts.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool opcode_mix -- "$executable" > "${log_dir}/${basename "$executable"}-opcodemix.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool view -- "$executable" > "${log_dir}/${basename "$executable"}-view.log" 2>&1
-            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool histogram -- "$executable" > "${log_dir}/${basename "$executable"}-histogram.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -c samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool TLB -- "$executable" > "${log_dir}/${(basename "$executable")}-TLB.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_distance -reuse_distance_histogram -- "$executable" > "${log_dir}/${(basename "$executable")}-reuse_dist.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool reuse_time -- "$executable" > "${log_dir}/${(basename "$executable")}-reuse_time.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool basic_counts -- "$executable" > "${log_dir}/${(basename "$executable")}-basic_counts.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool opcode_mix -- "$executable" > "${log_dir}/${(basename "$executable")}-opcodemix.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool view -- "$executable" > "${log_dir}/${(basename "$executable")}-view.log" 2>&1
+            $DYNAMORIO_HOME/bin64/drrun -t samples/bin64/libmemtrace_x86_text.so -offline -logdir "$log_dir" -tool histogram -- "$executable" > "${log_dir}/${(basename "$executable")}-histogram.log" 2>&1
           }
           
           find "$DIRECTORY" -type f -executable | while read -r file; do
@@ -197,7 +197,7 @@ jobs:
             mkdir -p "$log_dir"
             cpus=("Pentium" "PentiumMMX" "PentiumPro" "Pentium2" "Klamath" "Deschutes" "Pentium3" "Coppermine" "Tualatin" "PentiumM" "Banias" "Dothan" "Willamette" "Northwood" "Pentium4" "Prescott" "Presler" "Core2" "Merom" "Penryn" "Nehalem" "Westmere" "Sandybridge" "Ivybridge")
             for cpu in "${cpus[@]}"; do
-                local log_file="${log_dir}/${basename "$executable"}-ran-on-${cpu}.log"
+                local log_file="${log_dir}/${(basename "$executable")}-ran-on-${cpu}.log"
                 timeout --signal=SIGQUIT 30s $DYNAMORIO_HOME/bin64/drrun -t drcpusim -continue -ignore_all_libs -cpu "$cpu" -- "$executable" > "$log_file" 2>&1
             done
           }
