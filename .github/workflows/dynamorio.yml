@@ -274,6 +274,7 @@ jobs:
           
       - name: Build repository 
         run: | 
+          yum install -y perl
           ./Configure && make
         continue-on-error: true
 
