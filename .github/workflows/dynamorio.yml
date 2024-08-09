@@ -279,15 +279,15 @@ jobs:
 
       - name: Install DynamoRIO
         run: |
-          sudo yum -y update
-          sudo yum -y install libunwind
+          yum -y update
+          yum -y install libunwind
           wget -P /tmp/ https://github.com/DynamoRIO/dynamorio/releases/download/release_10.0.0/DynamoRIO-Linux-10.0.0.tar.gz && tar -xzf /tmp/DynamoRIO-Linux-10.0.0.tar.gz -C /tmp/
            
       - name: Disable Address Space Randomization
-        run: sudo sysctl -w kernel.randomize_va_space=0
+        run: sysctl -w kernel.randomize_va_space=0
       
       - name: Disable swapping 
-        run: sudo swapoff -a
+        run: swapoff -a
 
       - name: Make parent folder
         run: mkdir -p dynamoriologs
