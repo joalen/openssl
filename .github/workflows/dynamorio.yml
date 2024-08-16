@@ -66,7 +66,8 @@ jobs:
             local exit_status=$?
             
             for log_file in "$log_dir"/drcov.*.log; do
-              $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter "$log_dir"
+              $DYNAMORIO_HOME/tools/bin64/drcov2lcov -input "$log_file" -src_filter ../
+              perl $DYNAMORIO_HOME/tools/bin64/genhtml coverage.info
             done
           }
           
